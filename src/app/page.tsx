@@ -1,3 +1,4 @@
+import { ProjectsSection } from "@/components/projects-section";
 import { SiteHeader } from "@/components/site-header";
 import { HeroSection } from "@/components/hero-section";
 
@@ -9,14 +10,7 @@ export default function Home() {
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6">
         <HeroSection />
 
-        <section id="proyectos" className="flex min-h-svh flex-col justify-center border-b border-border py-24">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
-            01 — Proyectos
-          </p>
-          <h2 className="mt-4 font-heading text-3xl font-black tracking-tight sm:text-4xl">
-            Proyectos
-          </h2>
-        </section>
+        <ProjectsSection />
 
         <section id="sobre-mi" className="flex min-h-svh flex-col justify-center border-b border-border py-24">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
