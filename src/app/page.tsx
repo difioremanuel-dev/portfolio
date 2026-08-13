@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { Droplets } from "@/components/canvasui/Droplets";
+import { ProjectsSection } from "@/components/projects-section";
 import { SiteHeader } from "@/components/site-header";
 
 export default function Home() {
@@ -51,14 +52,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="proyectos" className="flex min-h-svh flex-col justify-center border-b border-border py-24">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
-            01 — Proyectos
-          </p>
-          <h2 className="mt-4 font-heading text-3xl font-black tracking-tight sm:text-4xl">
-            Proyectos
-          </h2>
-        </section>
+        <ProjectsSection />
 
         <section id="sobre-mi" className="flex min-h-svh flex-col justify-center border-b border-border py-24">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
