@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { BorderBeam } from "@/components/ui/border-beam";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Droplets } from "@/components/canvasui/Droplets";
 
 export default function Home() {
@@ -21,6 +22,7 @@ export default function Home() {
               Contacto
             </a>
           </nav>
+          <ThemeToggle />
         </div>
       </header>
 
@@ -44,8 +46,8 @@ export default function Home() {
                 <BorderBeam
                   size={160}
                   duration={8}
-                  colorFrom="#d4d4d4"
-                  colorTo="#404040"
+                  colorFrom="var(--muted-foreground)"
+                  colorTo="var(--foreground)"
                 />
                 <span className="font-mono text-xs uppercase tracking-[0.25em]">
                   BorderBeam
