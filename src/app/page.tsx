@@ -1,28 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { Droplets } from "@/components/canvasui/Droplets";
+import { SiteHeader } from "@/components/site-header";
 
 export default function Home() {
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
-          <span className="font-mono text-xs font-medium uppercase tracking-[0.25em]">
-            Manuel Di Fiore
-          </span>
-          <nav className="flex items-center gap-6 font-mono text-xs uppercase tracking-[0.25em]">
-            <a href="#proyectos" className="transition-colors hover:text-muted-foreground">
-              Proyectos
-            </a>
-            <a href="#sobre-mi" className="transition-colors hover:text-muted-foreground">
-              Sobre mí
-            </a>
-            <a href="#contacto" className="transition-colors hover:text-muted-foreground">
-              Contacto
-            </a>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6">
         <section className="border-b border-border py-24">

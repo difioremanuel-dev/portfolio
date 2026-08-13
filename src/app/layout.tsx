@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Chivo, Red_Hat_Mono } from "next/font/google";
+import { LocaleProvider } from "@/components/locale-provider";
 import "./globals.css";
 
 const chivo = Chivo({
@@ -24,7 +25,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${chivo.variable} ${redHatMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <LocaleProvider>{children}</LocaleProvider>
+      </body>
     </html>
   );
 }
