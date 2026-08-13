@@ -3,6 +3,7 @@
 import type { Locale } from "@/lib/locale";
 import { useLocale } from "./locale-provider";
 import { LocaleToggle } from "./locale-toggle";
+import { ThemeToggle } from "./theme-toggle";
 
 const NAV_LABELS: Record<Locale, { href: string; label: string }[]> = {
   es: [
@@ -38,6 +39,7 @@ export function SiteHeader() {
             </a>
           ))}
           <LocaleToggle />
+          <ThemeToggle />
         </nav>
       </div>
     </header>
