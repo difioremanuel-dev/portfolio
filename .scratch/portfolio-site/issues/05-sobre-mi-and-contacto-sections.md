@@ -4,9 +4,13 @@
 
 **Blocked by:** 01 — Scaffold del proyecto, 02 — Resolución de idioma + toggle
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] La sección Sobre mí renderiza bio corta (sin lista de skills, sin CV descargable, sin timeline) en ambos idiomas, con eyebrow de índice de sección (02)
-- [ ] La sección Contacto renderiza links estáticos a Instagram, X y GitHub (sin formulario, sin backend) en ambos idiomas, con eyebrow de índice de sección (03)
-- [ ] Todos los links abren el perfil externo correcto
-- [ ] No se introduce ningún color de acento; la paleta se mantiene en escala de grises
+- [x] La sección Sobre mí renderiza bio corta (sin lista de skills, sin CV descargable, sin timeline) en ambos idiomas, con eyebrow de índice de sección (02)
+- [x] La sección Contacto renderiza links estáticos a Instagram, X y GitHub (sin formulario, sin backend) en ambos idiomas, con eyebrow de índice de sección (03)
+- [x] Todos los links abren el perfil externo correcto
+- [x] No se introduce ningún color de acento; la paleta se mantiene en escala de grises
+
+## Comments
+
+- Implementado con placeholders explícitamente marcados (PRÓXIMAMENTE/COMING SOON), según indicación del coordinador: no se inventaron bio real ni handles reales — el autor los completará después editando `src/data/about.ts` y `src/data/contact.ts`.
