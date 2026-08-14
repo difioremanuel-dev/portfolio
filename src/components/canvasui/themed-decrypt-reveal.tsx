@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { useTheme } from "next-themes";
 
 import {
@@ -34,6 +34,12 @@ function getCoarsePointerSnapshot(): boolean {
   return window.matchMedia("(pointer: coarse)").matches;
 }
 
+const emptySubscribe = () => () => {};
+
+function getHydratedSnapshot(): boolean {
+  return true;
+}
+
 type ThemedDecryptRevealProps = {
   children: ReactNode;
   className?: string;
@@ -50,18 +56,18 @@ export function ThemedDecryptReveal({
   ...options
 }: ThemedDecryptRevealProps) {
   const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const hydrated = useSyncExternalStore(
+    emptySubscribe,
+    getHydratedSnapshot,
+    () => false,
+  );
   const coarsePointer = useSyncExternalStore(
     subscribeCoarsePointer,
     getCoarsePointerSnapshot,
     () => false,
   );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const isDark = mounted && resolvedTheme === "dark";
+  const isDark = hydrated && resolvedTheme === "dark";
   const values = isDark ? THEME_VALUES.dark : THEME_VALUES.light;
 
   return (
