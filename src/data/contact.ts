@@ -16,7 +16,7 @@ export const contactContent: ContactContent = {
     en: "COMING SOON",
   },
   links: [
-    { name: "Instagram", href: "https://www.instagram.com/" },
+    { name: "Instagram", href: "https://www.instagram.com/manudifiore_" },
     { name: "X", href: "https://x.com/" },
     { name: "GitHub", href: "https://github.com/" },
   ],
