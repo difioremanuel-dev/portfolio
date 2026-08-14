@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export interface DecryptRevealOptions {
   /** Decrypt radius around the cursor in CSS pixels. */
@@ -56,9 +50,9 @@ export interface DecryptRevealOptions {
 }
 
 export interface DecryptRevealElements {
-  /** Canvas with layoutsubtree that hosts the HTML content. */
+  /** Hidden canvas the content is rasterized into. */
   source: HTMLCanvasElement;
-  /** The element inside the source canvas that gets captured. */
+  /** The element whose text gets rasterized. */
   content: HTMLElement;
   /** Canvas the WebGL effect renders to. */
   output: HTMLCanvasElement;
@@ -114,15 +108,6 @@ const INNER_CIRCLES: Array<[number, number]> = [
   [0.28, 0.86],
   [0.72, 0.74],
 ];
-
-type PaintableCanvas = HTMLCanvasElement & {
-  onpaint?: (() => void) | null;
-  requestPaint?: () => void;
-};
-
-type ElementImageContext = CanvasRenderingContext2D & {
-  drawElementImage?: (element: Element, x: number, y: number) => void;
-};
 
 const VERT = `#version 300 es
 precision highp float;
@@ -494,17 +479,6 @@ function clampAspect(aspect: number) {
   return Math.min(Math.max(aspect || DEFAULTS.aspect, 0.35), 1.25);
 }
 
-export function supportsHtmlInCanvas(): boolean {
-  if (typeof document === "undefined") return false;
-  const probe = document.createElement("canvas") as PaintableCanvas;
-  const ctx = probe.getContext("2d") as ElementImageContext | null;
-  return Boolean(
-    ctx &&
-    typeof ctx.drawElementImage === "function" &&
-    typeof probe.requestPaint === "function",
-  );
-}
-
 export function createDecryptReveal(
   elements: DecryptRevealElements,
   options: DecryptRevealOptions = {},
@@ -521,27 +495,90 @@ export function createDecryptReveal(
   });
   if (!gl || gl.isContextLost()) return null;
 
-  const sourceCtx = source.getContext("2d") as ElementImageContext | null;
-  const paintable = source as PaintableCanvas;
-  const htmlInCanvas = Boolean(
-    sourceCtx &&
-    typeof sourceCtx.drawElementImage === "function" &&
-    typeof paintable.requestPaint === "function",
-  );
+  const sourceCtx = source.getContext("2d");
 
   let contentDirty = false;
   let cellsDirty = true;
   let wake = () => {};
 
-  if (htmlInCanvas) {
-    paintable.onpaint = () => {
-      try {
-        sourceCtx!.reset();
-        sourceCtx!.drawElementImage!(content, 0, 0);
-        contentDirty = true;
-        wake();
-      } catch {}
+  function directTextOf(el: HTMLElement): string {
+    let text = "";
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) text += node.nodeValue ?? "";
+    }
+    return text;
+  }
+
+  function collectTextElements(root: HTMLElement): HTMLElement[] {
+    const result: HTMLElement[] = [];
+    const visit = (el: HTMLElement) => {
+      if (directTextOf(el).trim() !== "") result.push(el);
+      for (const child of el.children) {
+        if (child instanceof HTMLElement) visit(child);
+      }
     };
+    visit(root);
+    return result;
+  }
+
+  function rasterizeContent() {
+    if (!sourceCtx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssWidth = Math.max(1, Math.round(content.clientWidth));
+    const cssHeight = Math.max(1, Math.round(content.clientHeight));
+    const width = Math.max(1, Math.round(cssWidth * dpr));
+    const height = Math.max(1, Math.round(cssHeight * dpr));
+    if (source.width !== width || source.height !== height) {
+      source.width = width;
+      source.height = height;
+    }
+    sourceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sourceCtx.clearRect(0, 0, cssWidth, cssHeight);
+    sourceCtx.fillStyle = config.color;
+    sourceCtx.textAlign = "left";
+    sourceCtx.textBaseline = "alphabetic";
+
+    const rootRect = content.getBoundingClientRect();
+    for (const el of collectTextElements(content)) {
+      const style = getComputedStyle(el);
+      const fontSize = parseFloat(style.fontSize) || 12;
+      const lineHeight =
+        style.lineHeight === "normal"
+          ? fontSize * 1.4
+          : parseFloat(style.lineHeight) || fontSize * 1.4;
+      const padLeft = parseFloat(style.paddingLeft) || 0;
+      const padRight = parseFloat(style.paddingRight) || 0;
+      const padTop = parseFloat(style.paddingTop) || 0;
+      const borderLeft = parseFloat(style.borderLeftWidth) || 0;
+      const borderTop = parseFloat(style.borderTopWidth) || 0;
+      const rect = el.getBoundingClientRect();
+      const x = rect.left - rootRect.left + padLeft + borderLeft;
+      const maxWidth = Math.max(
+        1,
+        el.clientWidth - padLeft - padRight - borderLeft,
+      );
+
+      sourceCtx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
+      const words = directTextOf(el).trim().split(/\s+/);
+      let line = "";
+      let cursorY =
+        rect.top - rootRect.top + borderTop + padTop + fontSize * 0.8;
+      for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (sourceCtx.measureText(candidate).width <= maxWidth || !line) {
+          line = candidate;
+        } else {
+          sourceCtx.fillText(line, x, cursorY);
+          cursorY += lineHeight;
+          line = word;
+        }
+      }
+      if (line) sourceCtx.fillText(line, x, cursorY);
+    }
+
+    contentDirty = true;
+    cellsDirty = true;
+    wake();
   }
 
   function compile(type: number, text: string): WebGLShader {
@@ -720,18 +757,7 @@ export function createDecryptReveal(
       1,
       Math.max(0.05, content.clientWidth / Math.max(output.clientWidth, 1)),
     );
-    if (htmlInCanvas) {
-      const cssWidth = Math.max(1, Math.round(source.clientWidth));
-      const cssHeight = Math.max(1, Math.round(source.clientHeight));
-      if (
-        source.width !== cssWidth * dpr ||
-        source.height !== cssHeight * dpr
-      ) {
-        source.width = cssWidth * dpr;
-        source.height = cssHeight * dpr;
-      }
-      paintable.requestPaint!();
-    }
+    rasterizeContent();
     cellsDirty = true;
   }
 
@@ -787,8 +813,14 @@ export function createDecryptReveal(
   rebuildAtlas();
   syncCanvasSize();
 
+  if (typeof document !== "undefined" && document.fonts) {
+    document.fonts.ready.then(() => {
+      if (!destroyed) rasterizeContent();
+    });
+  }
+
   function uploadContent() {
-    if (!htmlInCanvas || !contentDirty) return;
+    if (!contentDirty) return;
     contentDirty = false;
     cellsDirty = true;
     gl!.bindTexture(gl!.TEXTURE_2D, contentTexture);
@@ -888,7 +920,7 @@ export function createDecryptReveal(
     gl!.uniform3f(u.uBg, bg[0], bg[1], bg[2]);
     gl!.uniform1f(u.uTime, time);
     gl!.uniform1f(u.uMaxX, contentMaxX);
-    gl!.uniform1f(u.uCrisp, reducedMotion || !htmlInCanvas ? 1 : 0);
+    gl!.uniform1f(u.uCrisp, reducedMotion ? 1 : 0);
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
     gl!.viewport(0, 0, output.width, output.height);
     gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
@@ -925,7 +957,7 @@ export function createDecryptReveal(
     if (
       settled &&
       !contentDirty &&
-      (reducedMotion || !htmlInCanvas || !churning)
+      (reducedMotion || !churning)
     ) {
       pointer.x = pointer.tx;
       pointer.y = pointer.ty;
@@ -959,6 +991,16 @@ export function createDecryptReveal(
   observer.observe(output);
   observer.observe(content);
 
+  const contentObserver = new MutationObserver(() => {
+    rasterizeContent();
+    start();
+  });
+  contentObserver.observe(content, {
+    childList: true,
+    characterData: true,
+    subtree: true,
+  });
+
   const intersection = new IntersectionObserver((entries) => {
     visible = entries[entries.length - 1]?.isIntersecting ?? true;
     if (visible) start();
@@ -991,6 +1033,8 @@ export function createDecryptReveal(
 
   return {
     setOptions(next) {
+      const prevColor = config.color;
+      const prevBackground = config.background;
       let changed = false;
       for (const [key, value] of Object.entries(next)) {
         if (typeof value === "function") continue;
@@ -1020,6 +1064,9 @@ export function createDecryptReveal(
       ) {
         cellsDirty = true;
       }
+      if (config.color !== prevColor || config.background !== prevBackground) {
+        rasterizeContent();
+      }
       start();
     },
     resize() {
@@ -1030,6 +1077,7 @@ export function createDecryptReveal(
       destroyed = true;
       cancelAnimationFrame(raf);
       observer.disconnect();
+      contentObserver.disconnect();
       intersection.disconnect();
       motionQuery.removeEventListener("change", onMotionChange);
       listenTarget.removeEventListener("pointermove", onPointerMove);
@@ -1046,7 +1094,6 @@ export function createDecryptReveal(
       gl!.deleteShader(mainPass.vs);
       gl!.deleteShader(mainPass.fs);
       gl!.deleteBuffer(quad);
-      if (htmlInCanvas) paintable.onpaint = null;
     },
   };
 }
@@ -1056,8 +1103,6 @@ export interface DecryptRevealProps extends DecryptRevealOptions {
   className?: string;
   style?: React.CSSProperties;
 }
-
-const emptySubscribe = () => () => {};
 
 export function DecryptReveal({
   children,
@@ -1070,14 +1115,6 @@ export function DecryptReveal({
   const outputRef = useRef<HTMLCanvasElement>(null);
   const instanceRef = useRef<DecryptRevealInstance | null>(null);
   const [initialOptions] = useState(options);
-  const [failed, setFailed] = useState(false);
-
-  const supported = useSyncExternalStore(
-    emptySubscribe,
-    supportsHtmlInCanvas,
-    () => false,
-  );
-  const native = supported && !failed;
 
   useEffect(() => {
     const source = sourceRef.current;
@@ -1088,12 +1125,11 @@ export function DecryptReveal({
       { source, content, output },
       initialOptions,
     );
-    if (native && !instanceRef.current) setFailed(true);
     return () => {
       instanceRef.current?.destroy();
       instanceRef.current = null;
     };
-  }, [initialOptions, native]);
+  }, [initialOptions]);
 
   useEffect(() => {
     instanceRef.current?.setOptions(options);
@@ -1101,44 +1137,22 @@ export function DecryptReveal({
 
   return (
     <div className={className} style={{ position: "relative", ...style }}>
+      <div
+        ref={contentRef}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          overflow: "auto",
+        }}
+      >
+        {children}
+      </div>
       <canvas
         ref={sourceRef}
-        // @ts-expect-error experimental html-in-canvas attribute
-        layoutsubtree="true"
-        suppressHydrationWarning
-        style={
-          native
-            ? { position: "absolute", inset: 0, width: "100%", height: "100%" }
-            : { display: "none" }
-        }
-      >
-        {native ? (
-          <div
-            ref={contentRef}
-            style={{
-              position: "relative",
-              width: "100%",
-              height: "100%",
-              overflow: "auto",
-            }}
-          >
-            {children}
-          </div>
-        ) : null}
-      </canvas>
-      {!native ? (
-        <div
-          ref={contentRef}
-          style={{
-            position: "relative",
-            width: "100%",
-            height: "100%",
-            overflow: "auto",
-          }}
-        >
-          {children}
-        </div>
-      ) : null}
+        aria-hidden
+        style={{ display: "none" }}
+      />
       <canvas
         ref={outputRef}
         aria-hidden

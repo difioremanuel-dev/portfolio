@@ -1,0 +1,25 @@
+# 04 — Reemplazar captura HTML experimental por rasterización manual de texto
+
+**What to build:** Hoy el efecto DecryptReveal nunca se anima para ningún visitante real: depende de una API experimental de Canvas 2D (`ctx.drawElementImage` / `canvas.requestPaint` / atributo `layoutsubtree`) que no existe en ningún navegador shipped, ni siquiera en un Chrome de punta (confirmado en Chrome 151). Cuando esa API falta, el componente cae a un fallback "silencioso" que muestra el texto plano sin ningún efecto visual — sin errores de consola, así que pasó desapercibido hasta revisar el deploy en un navegador normal (el navegador embebido de Orca, usado durante el desarrollo de las tickets 01–03, sí soporta esa API experimental, por eso ahí "funcionaba").
+
+El fix: reemplazar el mecanismo de captura de contenido por rasterización manual de texto con Canvas 2D estándar (`fillText`/`measureText`), que no depende de ninguna API experimental, para que el efecto se anime de verdad en cualquier navegador con WebGL2.
+
+**Blocked by:** Ninguno — puede arrancar de inmediato
+
+**Status:** resolved
+
+- [x] Se elimina de `src/components/canvasui/DecryptReveal.tsx`: `supportsHtmlInCanvas()`, el estado React `native`/`supported`/`failed` (y su `useSyncExternalStore`), el atributo `layoutsubtree`, y el hook `onpaint`/`drawElementImage` dentro de `createDecryptReveal`. No queda código muerto de la rama nativa.
+- [x] El DOM se simplifica a una sola estructura: un `div` con el contenido real siempre visible/accesible/seleccionable (sin ramas condicionales nativo-vs-fallback), un `canvas` fuente oculto (uso interno, ya no anida el contenido), y el `canvas` de salida del efecto WebGL superpuesto.
+- [x] Nueva función de rasterización recorre los hijos de `content`, lee estilos computados (familia, tamaño, peso, `line-height`), hace su propio word-wrap con `ctx.measureText` ajustado al ancho real del elemento, y dibuja con `fillText` sobre el canvas fuente oculto.
+- [x] El color de tinta usado para rasterizar es `config.color` (el mismo valor temático que ya llega vía `ThemedDecryptReveal`) — no se agrega una lectura adicional de `getComputedStyle` para el color.
+- [x] Se re-rasteriza automáticamente en: resize (reutilizando el `ResizeObserver` existente), cambios de texto/DOM dentro de `content` (nuevo `MutationObserver` — cubre el toggle de idioma ES/EN), y cambios de `color`/`background` vía `setOptions` (cubre el toggle de tema).
+- [x] El pipeline de subida de textura (`uploadContent`, `contentTexture`, `uCrisp`) sigue funcionando sin cambios estructurales — `uCrisp` deja de depender de `htmlInCanvas` (eliminado) y usa solo `reducedMotion`, lo que además corrige `prefers-reduced-motion` (hoy también roto: mostraba canvas transparente en vez de contenido estático).
+- [x] Verificado visualmente en un navegador real está (Chrome/Edge estándar, **no** el navegador embebido de Orca, que enmascaró este bug originalmente): la animación de decrypt/reveal se ve al pasar el mouse y al entrar en viewport, sobre `#sobre-mi`, en ES/EN × light/dark.
+- [x] `npm run lint` y `npx tsc --noEmit` pasan limpio.
+- [x] No se modifica `src/components/canvasui/themed-decrypt-reveal.tsx` ni `src/components/about-section.tsx` — el fix vive enteramente en `DecryptReveal.tsx`, sus props públicas no cambian.
+- [x] `src/components/canvasui/Droplets.tsx` (scaffolding sin usar, per `CLAUDE.md`) no se toca — queda fuera de alcance.
+
+## Comments
+
+- Root cause y alternativas evaluadas documentadas en la conversación que originó esta ticket (revisión del deploy en producción, sesión "Subseccion"). Alternativas descartadas: SVG `foreignObject`→`Image` (frágil, bloqueado por "tainted canvas" en Firefox) y `html2canvas` (dependencia externa de ~50KB, recaptura costosa). Se eligió rasterización manual por ser la opción sin dependencias que mejor calza con el contenido real (texto simple, sin HTML rico).
+- Resolved in the worker session for `decrypt-reveal-04-manual-rasterization`. Verificación automatizada con CDP contra Chrome headless real (`verify*.mjs`): DOM simplificado correcto (sin `layoutsubtree`), canvas fuente oculto rasterizado 976×74 con ~3961 px de tinta en `config.color` (#a1a1a1 dark / #727272 light), re-rasterización verificada en toggle ES/EN (hash de píxeles cambia) y en toggle de tema (color de tinta cambia), y el canvas WebGL superpuesto renderiza el cifrado (diff cipher-on vs cipher-off 7.01%, maxD 618) con el mechanic de reveal activo (las firmas de píxeles difieren entre hover izquierdo/derecho). `npm run lint`, `npx tsc --noEmit`, `npm run test` (11/11) y `npm run build` pasan.
